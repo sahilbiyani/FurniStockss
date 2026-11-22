@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Furniture Stock Manager</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#121a2b;--panel2:#182338;--line:#26344b;--text:#edf3ff;--muted:#91a0b8;--accent:#7c9cff;--green:#45d6a0;--red:#ff7185}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172644 0%,var(--bg) 55%);color:var(--text);font:15px/1.5 Inter,system-ui,Segoe UI,Arial,sans-serif;min-height:100vh}
+.wrap{max-width:1250px;margin:auto;padding:30px 22px 60px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+h1{font-size:clamp(25px,4vw,34px);margin:0;letter-spacing:-.8px}.sub{color:var(--muted);margin:5px 0 0}.pill{border:1px solid var(--line);background:#121c2e;color:var(--muted);padding:8px 12px;border-radius:30px;font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:20px 0}.stat,.panel{background:linear-gradient(145deg,#141f33,#101827);border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 35px #0002}.stat{padding:17px 19px}.stat span{display:block;color:var(--muted);font-size:12px}.stat strong{font-size:25px;display:block;margin-top:5px}.panel{padding:20px;margin-top:16px}.panelhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:15px}.panel h2{font-size:17px;margin:0}
+.formgrid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:11px}.field label{display:block;color:var(--muted);font-size:12px;margin:0 0 6px}.field input{width:100%;background:#0c1423;border:1px solid var(--line);color:var(--text);padding:11px 12px;border-radius:9px;outline:none}.field input:focus{border-color:var(--accent)}
+button{border:0;border-radius:9px;padding:10px 15px;font-weight:650;cursor:pointer;background:var(--accent);color:#081126}button.secondary{background:#24334b;color:var(--text);border:1px solid #354765}button.danger{background:#482432;color:#ffc4cc;border:1px solid #713346}button:disabled{opacity:.5;cursor:not-allowed}.actions{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:14px}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px}table{width:100%;border-collapse:collapse;min-width:850px}th,td{text-align:left;padding:13px 14px;border-bottom:1px solid var(--line)}th{background:#18243a;color:#aebdd5;font-size:12px;text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0}td{color:#e4ebf8}tr:last-child td{border-bottom:0}tbody tr:hover{background:#ffffff08}.stock{font-weight:750;color:var(--green)}.empty{text-align:center;color:var(--muted);padding:32px}
+.note{font-size:12px;color:var(--muted);margin-top:12px}.status{font-size:12px;color:var(--muted)}.status.ok{color:var(--green)}.status.err{color:var(--red)}
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.search{background:#0c1423;border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:9px;min-width:220px}.authgrid{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:10px;max-width:560px}.authgrid input{background:#0c1423;border:1px solid var(--line);color:var(--text);padding:11px 12px;border-radius:9px;width:100%}.hidden{display:none!important}.sql{white-space:pre-wrap;background:#09111e;border:1px solid var(--line);padding:12px;border-radius:9px;color:#c7d6ef;font:12px/1.5 ui-monospace,monospace;overflow:auto}
+@media(max-width:800px){.formgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.stats{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.wrap{padding:20px 13px 40px}.formgrid{grid-template-columns:1fr 1fr}.stats{gap:8px}.stat{padding:13px}.stat strong{font-size:21px}.panel{padding:14px}.authgrid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div><h1>Furniture Stock Manager</h1><p class="sub">Track incoming stock, consumption and available inventory.</p></div>
+    <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap"><span class="pill" id="connectionPill">● Sign in required</span><button id="signOutButton" class="secondary hidden" type="button">Sign out</button></div>
+  </header>
+
+  <section class="panel" id="authPanel">
+    <div class="panelhead"><h2>Secure phone sign-in</h2><span class="status" id="authStatus">OTP required to view stock</span></div>
+    <div id="phoneStep"><div class="authgrid"><input id="phoneInput" type="tel" inputmode="tel" autocomplete="tel" placeholder="Phone number, e.g. +919876543210"><button id="sendOtpButton" type="button">Send OTP</button></div><p class="note">Enter your phone number in international format (E.164). An SMS verification code will be sent.</p></div>
+    <div id="otpStep" class="hidden"><div class="authgrid"><input id="otpInput" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter verification code"><button id="verifyOtpButton" type="button">Verify OTP</button></div><p class="note">Check your SMS and enter the code. <button id="changePhoneButton" type="button" class="secondary">Change number</button></p></div>
+  </section>
+
+  <main id="appContent" class="hidden">
+    <section class="stats">
+      <div class="stat"><span>PRODUCT ENTRIES</span><strong id="entryCount">0</strong></div>
+      <div class="stat"><span>TOTAL RECEIVED</span><strong id="receivedTotal">0</strong></div>
+      <div class="stat"><span>AVAILABLE STOCK</span><strong id="availableTotal">0</strong></div>
+    </section>
+
+    <section class="panel hidden" id="editorPanel">
+      <div class="panelhead"><h2 id="formTitle">Add stock entry</h2><span class="status" id="saveStatus">Editor access enabled</span></div>
+      <form id="stockForm">
+        <div class="formgrid">
+          <div class="field"><label for="entryDate">Date</label><input id="entryDate" type="date" required></div>
+          <div class="field"><label for="productName">Product name</label><input id="productName" placeholder="e.g. 3-seater sofa" required maxlength="120"></div>
+          <div class="field"><label for="unit">Unit</label><input id="unit" placeholder="e.g. pcs, kg, box" maxlength="40"></div>
+          <div class="field"><label for="quantity">Quantity received</label><input id="quantity" type="number" min="0" step="1" placeholder="0" required></div>
+          <div class="field"><label for="consumeDate">Consume date</label><input id="consumeDate" type="date"></div>
+          <div class="field"><label for="consumed">Quantity consumed</label><input id="consumed" type="number" min="0" step="1" value="0" required></div>
+          <div class="field"><label for="returned">Returned quantity</label><input id="returned" type="number" min="0" step="1" value="0" required></div>
+          <div class="field"><label for="remark">Remark</label><input id="remark" placeholder="Optional note" maxlength="500"></div>
+        </div>
+        <div class="actions"><button type="submit" id="saveButton">＋ Add entry</button><button type="button" class="secondary" id="cancelEdit" hidden>Cancel edit</button></div>
+      </form>
+      <p class="note">Available stock is calculated automatically as quantity received minus quantity consumed. Use separate entries for separate stock arrivals or consumption events.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panelhead"><h2>Stock register</h2><div class="toolbar"><input class="search" id="search" placeholder="Search products…"><button class="secondary" id="exportCsv">Export CSV</button></div></div>
+      <div class="tablewrap"><table><thead><tr><th>Date</th><th>Product name</th><th>Unit</th><th>Quantity received</th><th>Consume date</th><th>Quantity consumed</th><th>Returned quantity</th><th>Remark</th><th>Available stock</th><th id="actionsHeader" class="hidden">Actions</th></tr></thead><tbody id="stockRows"><tr><td colspan="9" class="empty">Loading stock…</td></tr></tbody></table></div>
+      <p class="note" id="accessNote">You are signed in with view-only access.</p>
+    </section>
+  </main>
+
+  <section class="panel" id="setupHelp">
+    <h2>One-time Supabase setup</h2>
+    <p class="note">Before publishing this version, enable Phone provider in Supabase Authentication and run the SQL below in SQL Editor. Replace the placeholder phone with the one authorised editor number in E.164 format. Do not enter it in the website code.</p>
+    <details style="margin-top:12px"><summary style="cursor:pointer;color:#c9d7ef">Show secure database SQL</summary>
+<pre class="sql">-- Safe to run on an existing FurniStock database.
+-- Adds the new columns without deleting existing stock records.
+alter table public.furniture_stock
+  add column if not exists unit text not null default '',
+  add column if not exists remark text not null default '',
+  add column if not exists returned_quantity integer not null default 0;
+
+-- Keep returned quantity within the amount already consumed.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.furniture_stock'::regclass
+      and conname = 'furniture_stock_returned_quantity_check'
+  ) then
+    alter table public.furniture_stock
+      add constraint furniture_stock_returned_quantity_check
+      check (returned_quantity >= 0 and returned_quantity <= consumed_quantity);
+  end if;
+end $$;
+
+-- Remove any old policies from the stock table.
+do $$
+declare p record;
+begin
+  for p in select policyname from pg_policies
+           where schemaname='public' and tablename='furniture_stock'
+  loop
+    execute format('drop policy if exists %I on public.furniture_stock', p.policyname);
+  end loop;
+end $$;
+
+create table if not exists public.furniture_editors (
+  phone text primary key check (phone ~ '^\+[1-9][0-9]{7,14}$')
+);
+alter table public.furniture_editors enable row level security;
+
+do $$
+declare p record;
+begin
+  for p in select policyname from pg_policies
+           where schemaname='public' and tablename='furniture_editors'
+  loop
+    execute format('drop policy if exists %I on public.furniture_editors', p.policyname);
+  end loop;
+end $$;
+
+revoke all on public.furniture_editors from anon, authenticated;
+grant select on public.furniture_editors to authenticated;
+
+create policy "editor can read own phone row"
+on public.furniture_editors for select to authenticated
+using (phone = (auth.jwt() ->> 'phone'));
+
+alter table public.furniture_stock enable row level security;
+revoke all on public.furniture_stock from anon;
+grant select, insert, update, delete on public.furniture_stock to authenticated;
+grant usage, select on sequence public.furniture_stock_id_seq to authenticated;
+
+create policy "signed in users can view stock"
+on public.furniture_stock for select to authenticated
+using (auth.uid() is not null);
+
+create policy "allowlisted phone can insert stock"
+on public.furniture_stock for insert to authenticated
+with check (exists (
+  select 1 from public.furniture_editors e
+  where e.phone = (auth.jwt() ->> 'phone')
+));
+
+create policy "allowlisted phone can update stock"
+on public.furniture_stock for update to authenticated
+using (exists (
+  select 1 from public.furniture_editors e
+  where e.phone = (auth.jwt() ->> 'phone')
+))
+with check (exists (
+  select 1 from public.furniture_editors e
+  where e.phone = (auth.jwt() ->> 'phone')
+));
+
+create policy "allowlisted phone can delete stock"
+on public.furniture_stock for delete to authenticated
+using (exists (
+  select 1 from public.furniture_editors e
+  where e.phone = (auth.jwt() ->> 'phone')
+));
+
+-- The authorised editor phone, in E.164 format (India +91).
+insert into public.furniture_editors(phone)
+values ('+919011078809')
+on conflict (phone) do nothing;
+
+-- Add to Realtime only if it is not already published.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'furniture_stock'
+  ) then
+    alter publication supabase_realtime add table public.furniture_stock;
+  end if;
+end $$;</pre>
+    <p class="note">If the SQL reports that the realtime table is already in the publication, that part is already configured. Keep the editor allowlist table private; never grant public/anon access to it.</p>
+    </details>
+  </section>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(() => {
+ 'use strict';
+ const $ = id => document.getElementById(id);
+ const SUPABASE_URL='https://hjxoejwiinijddstwwzi.supabase.co';
+ const SUPABASE_KEY='sb_publishable_6XwShWxUp6SpNX_V6EVqfw_77MkN9RV';
+ let client=null, rows=[], editingId=null, channel=null, currentUser=null, isEditor=false, pendingPhone='';
+ const today=new Date().toISOString().slice(0,10);
+ const setStatus=(msg,kind='')=>{$('saveStatus').textContent=msg;$('saveStatus').className='status '+kind;};
+ const setAuthStatus=(msg,kind='')=>{$('authStatus').textContent=msg;$('authStatus').className='status '+kind;};
+ const setConnection=(msg,ok=false)=>{$('connectionPill').textContent='● '+msg;$('connectionPill').style.color=ok?'var(--green)':'var(--muted)';};
+ const available=r=>Number(r.quantity)-Number(r.consumed_quantity)+Number(r.returned_quantity||0);
+ function setSignedInUI(user,editor){
+   currentUser=user;isEditor=editor;
+   $('authPanel').classList.add('hidden');$('setupHelp').classList.add('hidden');$('appContent').classList.remove('hidden');$('signOutButton').classList.remove('hidden');
+   $('editorPanel').classList.toggle('hidden',!editor);$('actionsHeader').classList.toggle('hidden',!editor);
+   $('accessNote').textContent=editor?'Editor access: you can add, edit and delete stock.':'View-only access: editing is restricted to the authorised phone number.';
+   setConnection(editor?'Signed in · editor':'Signed in · view only',true);
+ }
+ function setSignedOutUI(){
+   currentUser=null;isEditor=false;rows=[];editingId=null;
+   if(channel&&client)client.removeChannel(channel);channel=null;
+   $('appContent').classList.add('hidden');$('authPanel').classList.remove('hidden');$('setupHelp').classList.remove('hidden');$('signOutButton').classList.add('hidden');
+   $('phoneStep').classList.remove('hidden');$('otpStep').classList.add('hidden');$('otpInput').value='';
+   setConnection('Sign in required');
+ }
+ function render(){
+   const q=$('search').value.trim().toLowerCase();
+   const shown=rows.filter(r=>String(r.product_name).toLowerCase().includes(q)).sort((a,b)=>String(b.entry_date).localeCompare(String(a.entry_date)));
+   $('entryCount').textContent=rows.length;$('receivedTotal').textContent=rows.reduce((s,r)=>s+Number(r.quantity||0),0);$('availableTotal').textContent=rows.reduce((s,r)=>s+available(r),0);
+   $('stockRows').innerHTML='';
+   if(!shown.length){$('stockRows').innerHTML=`<tr><td colspan="${isEditor?10:9}" class="empty">No matching entries.</td></tr>`;return;}
+   for(const r of shown){
+     const tr=document.createElement('tr');
+     [r.entry_date,r.product_name,r.unit||'',r.quantity,r.consume_date||'—',r.consumed_quantity,r.returned_quantity||0,r.remark||'',available(r)].forEach((v,i)=>{const td=document.createElement('td');td.textContent=v??'';if(i===8)td.className='stock';tr.appendChild(td);});
+     if(isEditor){const td=document.createElement('td'),edit=document.createElement('button'),del=document.createElement('button');edit.textContent='Edit';edit.className='secondary';edit.style.marginRight='6px';edit.onclick=()=>beginEdit(r);del.textContent='Delete';del.className='danger';del.onclick=()=>removeRow(r.id);td.append(edit,del);tr.appendChild(td);}
+     $('stockRows').appendChild(tr);
+   }
+ }
+ function beginEdit(r){if(!isEditor)return;editingId=r.id;$('entryDate').value=r.entry_date;$('productName').value=r.product_name;$('unit').value=r.unit||'';$('quantity').value=r.quantity;$('consumeDate').value=r.consume_date||'';$('consumed').value=r.consumed_quantity;$('returned').value=r.returned_quantity||0;$('remark').value=r.remark||'';$('formTitle').textContent='Edit stock entry';$('saveButton').textContent='Save changes';$('cancelEdit').hidden=false;window.scrollTo({top:0,behavior:'smooth'});}
+ function resetForm(){editingId=null;$('stockForm').reset();$('entryDate').value=today;$('consumed').value=0;$('returned').value=0;$('formTitle').textContent='Add stock entry';$('saveButton').textContent='＋ Add entry';$('cancelEdit').hidden=true;}
+ async function refresh(){if(!client||!currentUser)return;const {data,error}=await client.from('furniture_stock').select('id,entry_date,product_name,unit,quantity,consume_date,consumed_quantity,returned_quantity,remark').order('entry_date',{ascending:false});if(error){setStatus(error.message,'err');return;}rows=data||[];render();if(isEditor)setStatus('Connected · editor access enabled','ok');}
+ // The authenticated phone may be returned without a leading "+".
+ // Compare digits only for the interface role. Database RLS remains the
+ // authority that enforces who can actually INSERT, UPDATE or DELETE.
+ const AUTHORIZED_EDITOR_PHONE_DIGITS = '919011078809';
+ const normalizePhoneDigits = value => String(value || '').replace(/\\D/g, '');
+
+ async function loadRoleAndData(user){
+   const editor = normalizePhoneDigits(user.phone) === AUTHORIZED_EDITOR_PHONE_DIGITS;
+   setSignedInUI(user, editor);
+   await refresh();
+   if(channel)await client.removeChannel(channel);
+   channel=client.channel('furniture-stock-live')
+     .on('postgres_changes',{event:'*',schema:'public',table:'furniture_stock'},()=>refresh())
+     .subscribe();
+ }
+ async function removeRow(id){if(!isEditor||!confirm('Delete this stock entry?'))return;const {error}=await client.from('furniture_stock').delete().eq('id',id);if(error){setStatus(error.message,'err');return;}await refresh();}
+ $('sendOtpButton').onclick=async()=>{
+   const phone=$('phoneInput').value.trim();
+   if(!/^\+[1-9][0-9]{7,14}$/.test(phone)){setAuthStatus('Enter a valid international number, e.g. +919876543210.','err');return;}
+   $('sendOtpButton').disabled=true;setAuthStatus('Sending verification code…');
+   const {error}=await client.auth.signInWithOtp({phone});
+   $('sendOtpButton').disabled=false;
+   if(error){setAuthStatus(error.message,'err');return;}
+   pendingPhone=phone;$('phoneStep').classList.add('hidden');$('otpStep').classList.remove('hidden');setAuthStatus('OTP sent. Check your SMS.','ok');
+ };
+ $('verifyOtpButton').onclick=async()=>{
+   const token=$('otpInput').value.trim();if(!token){setAuthStatus('Enter the OTP from your SMS.','err');return;}
+   $('verifyOtpButton').disabled=true;setAuthStatus('Verifying OTP…');
+   const {data,error}=await client.auth.verifyOtp({phone:pendingPhone,token,type:'sms'});
+   $('verifyOtpButton').disabled=false;
+   if(error){setAuthStatus(error.message,'err');return;}
+   try{await loadRoleAndData(data.user);}catch(err){await client.auth.signOut();setSignedOutUI();setAuthStatus('Could not load access permissions: '+err.message,'err');}
+ };
+ $('changePhoneButton').onclick=()=>{$('phoneStep').classList.remove('hidden');$('otpStep').classList.add('hidden');setAuthStatus('Enter your phone number.');};
+ $('signOutButton').onclick=async()=>{await client.auth.signOut();setSignedOutUI();setAuthStatus('Signed out. Sign in with OTP to continue.');};
+ $('stockForm').addEventListener('submit',async e=>{
+   e.preventDefault();if(!isEditor||!currentUser){setStatus('You do not have editing permission.','err');return;}
+   const quantity=Number($('quantity').value),consumed=Number($('consumed').value),returned=Number($('returned').value);
+   if(consumed>quantity){setStatus('Consumed quantity cannot exceed quantity received.','err');return;}
+   if(returned>consumed){setStatus('Returned quantity cannot exceed quantity consumed.','err');return;}
+   const item={entry_date:$('entryDate').value,product_name:$('productName').value.trim(),unit:$('unit').value.trim(),quantity,consume_date:$('consumeDate').value||null,consumed_quantity:consumed,returned_quantity:returned,remark:$('remark').value.trim()};if(!item.product_name)return;
+   $('saveButton').disabled=true;
+   const result=editingId?await client.from('furniture_stock').update(item).eq('id',editingId):await client.from('furniture_stock').insert(item);
+   $('saveButton').disabled=false;
+   if(result.error){setStatus(result.error.message,'err');return;}
+   await refresh();resetForm();
+ });
+ $('cancelEdit').onclick=resetForm;$('search').oninput=render;
+ $('exportCsv').onclick=()=>{
+   const header=['Date','Product name','Unit','Quantity received','Consume date','Quantity consumed','Returned quantity','Remark','Available stock'];
+   const lines=[header,...rows.map(r=>[r.entry_date,r.product_name,r.unit||'',r.quantity,r.consume_date||'',r.consumed_quantity,r.returned_quantity||0,r.remark||'',available(r)])];
+   const csv=lines.map(line=>line.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\\r\\n');
+   const a=document.createElement('a'),url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.href=url;a.download='furniture-stock.csv';a.click();URL.revokeObjectURL(url);
+ };
+ async function init(){
+   if(!window.supabase){setAuthStatus('Supabase library failed to load. Check your internet connection.','err');return;}
+   client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+   const {data:{session},error}=await client.auth.getSession();
+   if(error){setAuthStatus(error.message,'err');return;}
+   if(session?.user){try{await loadRoleAndData(session.user);}catch(err){setSignedOutUI();setAuthStatus('Access check failed: '+err.message,'err');}}
+   client.auth.onAuthStateChange(async(event,sessionNow)=>{
+     if(event==='SIGNED_OUT'||!sessionNow){setSignedOutUI();return;}
+     if(event==='SIGNED_IN'&&sessionNow.user&&!currentUser){try{await loadRoleAndData(sessionNow.user);}catch(err){setAuthStatus('Access check failed: '+err.message,'err');}}
+   });
+ }
+ $('entryDate').value=today;
+ init();
+})();
+</script>
+</body>
+</html>
